@@ -1,0 +1,258 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                     Heat2D_CG v. 1.0                 %
+%            Miglioramento del codice seriale          %
+%                                                      %
+%                Prima versione del codice             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+PROGRAM Heat2D_CG
+	IMPLICIT NONE
+	!------------------------------------------!
+	! ...
+	INTEGER		      :: IMAX
+	REAL, ALLOCATABLE :: T(:,:), Tnew(:,:)
+	! ...
+	!------------------------------------------!
+	
+	IMAX = ...
+	
+	! Allocate memory
+	ALLOCATE( T(IMAX,IMAX)    )                  
+	ALLOCATE( Tnew(IMAX,IMAX) )                      
+	! ...
+	
+END PROGRAM Heat2D_CG
+
+
+
+SUBROUTINE CG2D(N,x,b,kappa,dt,dx2,dy2)
+    IMPLICIT NONE
+    !--------------------------------------------------!
+    ! Argument list
+    INTEGER         :: N                                ! dimension of the problem
+    REAL            :: x(N,N)                           
+    REAL            :: b(N,N)                		    ! rhs
+    REAL            :: kappa, dt, dx2, dy2              ! problem dipendent variables
+    ! Local variables
+    INTEGER         :: k, KMAX                             
+    REAL            :: Ax(N,N), r(N,N), &
+                       p(N,N), Ap(N,N) 
+    REAL            :: alpha, alphak, lambda
+    REAL, PARAMETER :: tol=1e-12
+    !--------------------------------------------------!
+    
+    KMAX   = N       ! maximum number of interations
+    x      = b
+    CALL matop2D(N,Ax,x,kappa,dt,dx2,dy2)
+    r      = b - Ax
+    p      = r
+    alphak = SUM(r*r)
+    
+    DO k = 1, KMAX
+        
+        IF(SQRT(alphak).LT.tol) THEN
+            PRINT *, ' | CG iter: ', k, ' CG res = ', SQRT(alphak)
+            RETURN
+        ENDIF
+    
+        CALL matop2D(N,Ap,p,kappa,dt,dx2,dy2)
+        lambda = alphak/SUM(p*Ap)
+        x      = x + lambda*p
+        r      = r - lambda*Ap
+        alpha  = SUM(r*r)
+        p      = r + alpha/alphak*p
+        alphak = alpha
+        
+    ENDDO !k
+    
+    IF(k.GE.KMAX) THEN
+        PRINT *, ' ERROR. CG method did not converge! '
+        PRINT *, ' CG res = ', SQRT(alphak)
+        PAUSE
+        STOP
+    ENDIF
+    
+END SUBROUTINE CG2D
+ 
+SUBROUTINE matop2D(N,Ap,p,kappa,dt,dx2,dy2)
+    IMPLICIT NONE
+    !--------------------------------------------------------!
+    ! Argument list
+    INTEGER     :: N
+    REAL        :: Ap(N,N), p(N,N)
+    REAL        :: kappa, dt, dx2, dy2
+    ! Local variables
+    INTEGER     :: i, j
+    REAL        :: a, b, c, d, e
+    REAL        :: pL, pR, pT, pB              ! left, right, top and bottom value for p
+    !--------------------------------------------------------!
+    !
+    e = 1.0 + 2.0*kappa*dt/dx2 + 2.0*kappa*dt/dy2
+    !
+    DO j = 1, N
+        !
+        DO i = 1, N
+            !
+            ! Check for j value
+            IF(j.EQ.1) THEN
+                pL = 0.0
+                pR = p(i,j+1)
+                a  = 0.0
+                c  = -kappa*dt/dy2
+            ELSEIF(j.EQ.N) THEN
+                pL = p(i,j-1)
+                pR = 0.0
+                a  = -kappa*dt/dy2
+                c  = 0.0
+            ELSE
+                pL = p(i,j-1)
+                pR = p(i,j+1)
+                a  = -kappa*dt/dy2
+                c  = -kappa*dt/dy2
+            ENDIF
+            !         
+            ! Check for i value
+            IF(i.EQ.1) THEN
+                pT = 0.0
+                pB = p(i+1,j)
+                d  = 0.0
+                b  = -kappa*dt/dx2
+            ELSEIF(i.EQ.N) THEN
+                pT = p(i-1,j)
+                pB = 0.0
+                d  = -kappa*dt/dx2
+                b  = 0.0
+            ELSE 
+                pT = p(i-1,j)
+                pB = p(i+1,j)
+                d  = -kappa*dt/dx2
+                b  = -kappa*dt/dx2
+            ENDIF
+            !
+            !Ap(i,j) = a*pL + b*pB + c*pR + d*pT + e*p(i,j)
+            !
+        ENDDO !i
+        !
+    ENDDO !j
+    
+    ! Update the boundaries
+    Ap(:,1) = Ap(:,2)     ! first column 
+    Ap(:,N) = Ap(:,N-1)   ! last column
+    Ap(1,:) = Ap(2,:)     ! first row
+    Ap(N,:) = Ap(N-1,:)   ! last row
+    
+END SUBROUTINE matop2D
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                     Heat2D_CG v. 2.0                 %
+%            Miglioramento del codice seriale          %
+%                                                      %
+%              Introduzione del ghost cells            %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+PROGRAM Heat2D_CG
+	IMPLICIT NONE
+	!------------------------------------------!
+	! ...
+	INTEGER		      :: IMAX
+	REAL, ALLOCATABLE :: T(:,:), Tnew(:,:)
+	! ...
+	!------------------------------------------!
+	
+	IMAX = ...
+	
+	! Allocate memory
+	ALLOCATE( T(0:IMAX+1,0:IMAX+1)    )                  
+	ALLOCATE( Tnew(0:IMAX+1,0:IMAX+1) )                      
+	! ...
+	
+END PROGRAM Heat2D_CG
+
+SUBROUTINE CG2D(N,x,b,kappa,dt,dx2,dy2)
+    IMPLICIT NONE
+    !--------------------------------------------------!
+    ! Argument list
+    INTEGER         :: N                                ! dimension of the problem
+    REAL            :: x(0:N+1,0:N+1)                           
+    REAL            :: b(0:N+1,0:N+1)                   ! rhs
+    REAL            :: kappa, dt, dx2, dy2              ! problem dipendent variables
+    ! Local variables
+    INTEGER         :: k, KMAX                             
+    REAL            :: Ax(0:N+1,0:N+1), r(0:N+1,0:N+1), &
+                       p(0:N+1,0:N+1), Ap(0:N+1,0:N+1) 
+    REAL            :: alpha, alphak, lambda
+    REAL, PARAMETER :: tol=1e-12
+    !--------------------------------------------------!
+    
+    KMAX   = N       ! maximum number of interations
+    x      = b
+    CALL matop2D(N,Ax,x,kappa,dt,dx2,dy2)
+    r      = b - Ax
+    p      = r
+    alphak = SUM(r*r)
+    
+    DO k = 1, KMAX
+        
+        IF(SQRT(alphak).LT.tol) THEN
+            PRINT *, ' | CG iter: ', k, ' CG res = ', SQRT(alphak)
+            RETURN
+        ENDIF
+    
+        CALL matop2D(N,Ap,p,kappa,dt,dx2,dy2)
+        lambda = alphak/SUM(p*Ap)
+        x      = x + lambda*p
+        r      = r - lambda*Ap
+        alpha  = SUM(r*r)
+        p      = r + alpha/alphak*p
+        alphak = alpha
+        
+    ENDDO !k
+    
+    IF(k.GE.KMAX) THEN
+        PRINT *, ' ERROR. CG method did not converge! '
+        PRINT *, ' CG res = ', SQRT(alphak)
+        PAUSE
+        STOP
+    ENDIF
+    
+END SUBROUTINE CG2D
+ 
+SUBROUTINE matop2D(N,Ap,p,kappa,dt,dx2,dy2)
+    IMPLICIT NONE
+    !--------------------------------------------------------!
+    ! Argument list
+    INTEGER     :: N
+    REAL        :: Ap(0:N+1,0:N+1), p(0:N+1,0:N+1)
+    REAL        :: kappa, dt, dx2, dy2
+    ! Local variables
+    INTEGER     :: i, j
+    REAL        :: a, b, c, d, e
+    REAL        :: pL, pR, pT, pB              ! left, right, top and bottom value for p
+    !--------------------------------------------------------!
+    !
+    a = -kappa*dt/dy2
+    b = -kappa*dt/dx2
+    c = -kappa*dt/dy2
+    d = -kappa*dt/dx2
+    e = 1.0 + 2.0*kappa*dt/dx2 + 2.0*kappa*dt/dy2
+    !
+    DO j = 1, N
+        !
+        DO i = 1, N
+            !
+            ! Non c'è più bisogno dei controlli sui valori di i e j ora che sono
+			! state introdotte le ghost cells (il codice oltre che più performante diventa anche più pulito)
+            Ap(i,j) = a*p(i,j-1) + b*p(i+1,j) + c*p(i,j+1) + d*p(i-1,j) + e*p(i,j)
+            !
+        ENDDO !i
+        !
+    ENDDO !j
+    
+    ! Update the boundaries (update the ghost cells)
+    Ap(:,0)   = Ap(:,1)     ! first column 
+    Ap(:,N+1) = Ap(:,N)     ! last column
+    Ap(0,:)   = Ap(1,:)     ! first row
+    Ap(N+1,:) = Ap(N,:)     ! last row
+    
+END SUBROUTINE matop2D
+
